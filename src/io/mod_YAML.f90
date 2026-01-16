@@ -2,6 +2,7 @@ module YAML
     use KindType, only: ip, rp
     use YAML_Node
     use YAML_Parser
+    use YAML_Value
     implicit none
 
     private
@@ -47,9 +48,10 @@ contains
         type(yaml_node_t), pointer :: current_parent
         type(yaml_node_t), pointer :: new_node
         type(yaml_node_t), pointer :: last_node
+        class(yaml_value_t), allocatable :: val
         !
-        character(:), allocatable :: key, raw_val
-        integer(ip) :: dtype, indent
+        character(:), allocatable :: key
+        integer(ip) :: indent
         logical :: eof
         !
         self%fname = fname
@@ -61,9 +63,10 @@ contains
 
         call parser%open(fname)
         read_yaml: do
-            call parser%next(key, raw_val, dtype, indent, eof)
+            call parser%next(key, val, indent, eof)
             if(eof) exit read_yaml
             new_node => yaml_node_t(key, indent)
+            new_node%value = val
             !
             ! Find new parent
             if(associated(last_node)) then

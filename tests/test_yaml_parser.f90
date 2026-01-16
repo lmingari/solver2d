@@ -6,17 +6,19 @@ end program test_yaml_parser
 subroutine process
     use KindType
     use YAML_Parser
+    use YAML_Value
     implicit none
 
     type(yaml_parser_t) :: parser
-    character(:), allocatable :: key, raw_val
-    integer(ip) :: dtype, indent
+    character(:), allocatable :: key
+    class(yaml_value_t), allocatable :: val
+    integer(ip) :: indent
     logical :: eof
 
     call parser%open('test.yaml')
     do
-        call parser%next(key, raw_val, dtype, indent, eof)
+        call parser%next(key, val, indent, eof)
         if(eof) exit
-        write(*,*) repeat('+',indent), key, ': ', raw_val, indent
+        write(*,*) repeat('+',indent), key, ': ', val%to_string()
     enddo
 end subroutine process

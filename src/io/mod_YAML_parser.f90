@@ -1,5 +1,6 @@
 module YAML_Parser
     use KindType
+    use YAML_Value, only: yaml_value_t
     implicit none
     !
     private
@@ -7,12 +8,13 @@ module YAML_Parser
     PUBLIC :: yaml_parser_t
     !
     ! Value types enumeration
+    ! Order is important!
     integer(ip), parameter :: Y_NULL  = 0
     integer(ip), parameter :: Y_BOOL  = 1
     integer(ip), parameter :: Y_INT   = 2
     integer(ip), parameter :: Y_REAL  = 3
-    integer(ip), parameter :: Y_STR   = 4
-    integer(ip), parameter :: Y_ARRAY = 5
+    integer(ip), parameter :: Y_ARRAY = 4
+    integer(ip), parameter :: Y_STR   = 5
     !
     ! Parser class
     type :: yaml_parser_t
@@ -26,6 +28,7 @@ module YAML_Parser
       procedure :: open => parser_open
       procedure :: close => parser_close
       procedure :: next => parser_next
+      procedure :: parse_value => parser_parse_value
       procedure, private :: read_line => parser_read_line
       procedure, private :: block2flow => parser_array_block2flow
       final :: destroy_parser
@@ -109,17 +112,18 @@ contains
     !>>>1 Methods: next
     !
 
-    subroutine parser_next(self, key, raw_val, dtype, indent, eof)
+    subroutine parser_next(self, key, val, indent, eof)
         class(yaml_parser_t), intent(inout) :: self
-        character(:), allocatable, intent(out) :: key, raw_val
-        integer(ip), intent(out) :: dtype
+        character(:), allocatable, intent(out) :: key
+        class(yaml_value_t), allocatable, intent(out) :: val
         integer(ip), intent(out) :: indent
         logical, intent(out) :: eof
         !
-        character(:), allocatable :: line
+        character(:), allocatable :: line, raw_val
         integer(ip) :: colon_pos
+        integer(ip), allocatable :: dtypes(:)
         !
-        key = ""; raw_val = ""; eof = .false.
+        key = ""; eof = .false.
         !
         call self%read_line(line, indent, eof)
         if(eof) return
@@ -135,8 +139,70 @@ contains
             call self%block2flow(raw_val)
         endif
         !
-        dtype = get_dtype(raw_val)
+        call self%parse_value(raw_val, val)
+        !        
     end subroutine parser_next
+
+    !
+    !>>>1 Methods: parse_value
+    !
+
+    subroutine parser_parse_value(self,str,val)
+        class(yaml_parser_t), intent(inout) :: self
+        character(*), intent(in) :: str
+        class(yaml_value_t), allocatable, intent(out) :: val
+        !
+        character(len=:), allocatable :: trimmed
+        integer(ip) :: istat
+        integer(ip) :: i_tmp
+        real(rp) :: r_tmp
+
+        trimmed = to_lowercase(trim(adjustl(str)))
+
+        ! Check Null
+        if (len_trim(trimmed) == 0) then
+            val = yaml_value_t()
+            return
+        end if
+
+        ! Check Boolean/NULL
+        select case(trimmed)
+        case("~","null")
+            val = yaml_value_t()
+            return
+        case("true","yes")
+            val = yaml_value_t(.true.)
+            return
+        case("false","no")
+            val = yaml_value_t(.false.)
+            return
+        end select
+
+        ! Check Array
+        if (trimmed(1:1) == '[' .and. &
+            trimmed(len(trimmed):) == ']') then
+            val = yaml_value_t([1,2,3])
+            return
+        endif
+
+        ! Check Integer
+        read(str, *, iostat=istat) i_tmp
+        if (istat == 0 .and. index(str, '.') == 0) then
+            val = yaml_value_t(i_tmp)
+            return
+        end if
+
+        ! Check Real
+        read(str, *, iostat=istat) r_tmp
+        if (istat == 0) then
+            val = yaml_value_t(r_tmp)
+            return
+        end if
+
+        ! Set default
+        val = yaml_value_t(str)
+
+    end subroutine parser_parse_value
 
     !
     !>>>1 Methods: block2flow
@@ -236,29 +302,51 @@ contains
             dtype = Y_REAL; return
         end if
 
-    end function
+    end function get_dtype
 
-    function is_array(str, delimiter)
+    function get_dtypes(str, delimiter) result(dtypes)
         character(*), intent(in) :: str
-        character(1), intent(in) :: delimiter
+        character(*), intent(in) :: delimiter
+        integer(ip), allocatable :: dtypes(:)
         !
-        character(:), allocatable :: inner
+        integer(ip) :: i, is, ie, count, idel
+        character(:), allocatable :: input_str, tmp_str
         !
-        istart = index(str,'[')
-        iend   = index(str,']')
-        if(istart==0 .or. iend==0) return
-        if(istart>iend) return
+        ! Check array datatype
+        is = index(str,'[')
+        ie = index(str,']')
+        if(is==0 .or. ie==0) return
+        if(is>ie) return
         !
-        inner = str(istart:iend)
+        input_str = str(is+1:ie-1)
         !
         ! Count elements
-        n = 1
-        do i = 1, len(inner)
-            if (inner(i:i) == ',') n = n + 1
+        count = 1
+        is = 1
+        idel = index(input_str,delimiter)
+        do while(idel>0)
+            count = count + 1
+            is = is + idel + len(delimiter) - 1
+            idel = index(input_str(is:),delimiter)
         end do
         !
-        allocate(dtypes(n))
-    end function is_array
+        ! Returns datatypes
+        allocate(dtypes(count))
+        !
+        is = 1
+        do i = 1, count
+          idel = index(input_str(is:), delimiter)
+          if(idel == 0) then
+              tmp_str = input_str(is:)
+          else
+              ie = is + idel - 1
+              tmp_str = input_str(is:ie-1)
+              is = ie + len(delimiter)
+          endif
+          dtypes(i) = get_dtype(tmp_str)
+        enddo
+
+    end function get_dtypes
 
     function to_lowercase(str) result(res)
         character(*), intent(in) :: str

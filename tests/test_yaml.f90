@@ -11,6 +11,7 @@ subroutine process
     type(yaml_node_t), pointer :: node_ptr
     call config%open('test.yaml')
 !    call config%root%print
-    node_ptr => config%get_node('pepe2','new_lis')
-    if(associated(node_ptr)) call node_ptr%print
+!    node_ptr => config%get_node('pepe2','new_lis')
+!    if(associated(node_ptr)) call node_ptr%print
+    call config%root%print
 end subroutine process

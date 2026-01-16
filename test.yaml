@@ -16,7 +16,7 @@ enable: no
 pepe2:
   test: true
   if_fire:
-    source_file: true
+    source_file: yes
     emission_factors: [1,2,3,4]
   new_lis:
     - 1.2
