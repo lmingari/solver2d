@@ -1,0 +1,25 @@
+scores: [95, 87, 92]
+name: John Doe
+items:
+  - apple
+  - banana
+  - orange
+age: 30
+time: 4.5
+pepe: "noese"
+
+#Tdsst 
+#fds
+enable: no
+   # nose
+
+pepe2:
+  test: true
+  if_fire:
+    source_file: true
+    emission_factors: [1,2,3,4]
+  new_lis:
+    - 1.2
+    - 3
+    - real
+    - yes
