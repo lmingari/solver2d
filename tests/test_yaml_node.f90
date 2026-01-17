@@ -34,7 +34,7 @@ subroutine testing()
     call root%first_child%add_child(child)
 
     child => yaml_node_t('lista',2)
-    child%value = yaml_value_t(["hola", "nene", "si  "])
+    child%value = yaml_value_t(size_t(3), ["hola", "nene", "si  "])
     call root%first_child%add_child(child)
     
     call root%print

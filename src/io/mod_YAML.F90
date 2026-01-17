@@ -1,3 +1,5 @@
+#include "config.h"
+
 module YAML
     use KindType, only: ip, rp
     use YAML_Node
@@ -9,11 +11,13 @@ module YAML
     PUBLIC :: yaml_t
 
     type :: yaml_t
+        private
         character(len=:), allocatable :: fname
         type(yaml_node_t), pointer :: root => null()
     contains
         procedure :: open  => yaml_open
         procedure :: close => yaml_close
+        procedure :: print => yaml_print
         procedure :: yaml_get_node1
         procedure :: yaml_get_node2
         generic   :: get_node => yaml_get_node1, yaml_get_node2
@@ -33,7 +37,9 @@ contains
     subroutine destroy_yaml(self)
         type(yaml_t), intent(inout) :: self
         call self%close
+#if ENABLE_DEBUG_INFO
         write(*,*) "Destroyed yaml_t"
+#endif
     end subroutine destroy_yaml
 
     !
@@ -99,6 +105,20 @@ contains
             deallocate(self%root)
         endif
     end subroutine yaml_close
+
+    !
+    !>>>1 Methods: print
+    !
+
+    subroutine yaml_print(self)
+        class(yaml_t), intent(in) :: self
+        !
+        write(*,*) "-------- ", self%fname, "--------"
+        if(associated(self%root)) then
+            call self%root%print
+        endif
+        write(*,*) "---------------------------------"
+    end subroutine yaml_print
 
     !
     !>>>1 Methods: getter

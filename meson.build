@@ -3,5 +3,7 @@ project('heat2d', 'fortran',
   default_options : ['fortran_std=f2018']
 )
 
+inc = include_directories('include')
+
 subdir('src')
 subdir('tests')

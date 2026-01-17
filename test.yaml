@@ -23,3 +23,8 @@ pepe2:
     - 3
     - real
     - yes
+  activate:
+    - true
+    - false
+    - no
+    - yes

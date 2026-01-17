@@ -13,5 +13,10 @@ module KindType
     integer, parameter :: s_file = 64
     integer, parameter :: s_msg  = 128
     !
+    ! Size type
+    type :: size_t
+        integer(ip) :: n
+    end type
+    !
 end module KindType
 

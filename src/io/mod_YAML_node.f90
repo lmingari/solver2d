@@ -66,7 +66,6 @@ contains
             deallocate(current)
             current => next_node
         end do
-        write(*,*) "Destroyed node"
 
         ! 2. Nullify pointers to break associations
         this%parent        => null()
@@ -85,7 +84,13 @@ contains
         type(yaml_node_t), pointer :: current
         character(len=100) :: indent_str
         !
-        indent_str = repeat('+', max(0,this%indent))
+        if(this%indent==0) then
+            indent_str = '>'
+        elseif(this%indent>0) then
+            indent_str = repeat('-', this%indent)
+        else
+            indent_str = '========='
+        endif
 
         ! Start with key
         if (allocated(this%key)) then

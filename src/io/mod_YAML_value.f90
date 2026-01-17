@@ -1,9 +1,8 @@
 module YAML_Value
-    use KindType, only: ip, rp
+    use KindType, only: ip, rp, size_t
     implicit none
-
-    private
     !
+    private
     PUBLIC :: yaml_value_t
 
     ! ============================================
@@ -15,8 +14,8 @@ module YAML_Value
     contains
         ! Abstract methods that must be implemented
         procedure(to_string_abs), deferred :: to_string
-        procedure(get_type_abs), deferred :: get_type
-        procedure(clone_abs), deferred :: clone
+        procedure(get_type_abs),  deferred :: get_type
+        procedure(clone_abs),     deferred :: clone
     end type yaml_value_t
 
     abstract interface
@@ -111,11 +110,16 @@ module YAML_Value
 
     interface yaml_value_t
         module procedure create_null_value
-        module procedure create_real_value
-        module procedure create_int_value
         module procedure create_bool_value
+        module procedure create_int_value
+        module procedure create_real_value
         module procedure create_string_value
-        module procedure create_array_value
+        !
+        module procedure create_null_array
+        module procedure create_bool_array
+        module procedure create_int_array
+        module procedure create_real_array
+        module procedure create_string_array
     end interface
 
 contains
@@ -180,64 +184,79 @@ contains
         end select
     end function create_string_value
 
-    function create_array_value(values) result(res)
-        class(*), intent(in) :: values(:)
+    function create_null_array(arr_size) result(res)
+        type(size_t), intent(in) :: arr_size
         class(yaml_value_t), allocatable :: res
+        type(yaml_array),    allocatable :: tmp
+
+        allocate(tmp)
+        allocate(yaml_null :: tmp%values(arr_size%n))
+!        res%raw_string = "null"
+        call move_alloc(tmp,res)
+    end function create_null_array
+
+    function create_bool_array(arr_size,bvals) result(res)
+        type(size_t), intent(in) :: arr_size
+        logical,      intent(in) :: bvals(arr_size%n)
+        class(yaml_value_t), allocatable :: res
+        type(yaml_array),    allocatable :: tmp
+
+        allocate(tmp)
+        allocate(yaml_bool :: tmp%values(arr_size%n))
+        select type(values => tmp%values)
+        type is (yaml_bool)
+            values(:)%value = bvals
+        end select
+        call move_alloc(tmp,res)
+    end function create_bool_array
+
+    function create_int_array(arr_size,ivals) result(res)
+        type(size_t), intent(in) :: arr_size
+        integer(ip),  intent(in) :: ivals(arr_size%n)
+        class(yaml_value_t), allocatable :: res
+        type(yaml_array),    allocatable :: tmp
         !
-        integer(ip) :: n,i
-        class(yaml_value_t), allocatable :: values_copy(:)
-
-        allocate(yaml_array :: res)
-
-        n = size(values)
-        if(n==0) return
-
-        select type(values)
-        type is (real(rp))
-            block
-                type(yaml_real), allocatable :: tmp(:)
-                allocate(tmp(n))
-                do i=1,n
-                    call tmp(i)%set(values(i))
-                enddo
-                call move_alloc(tmp,values_copy)
-            end block
-        type is (integer(ip))
-            block
-                type(yaml_int), allocatable :: tmp(:)
-                allocate(tmp(n))
-                do i=1,n
-                    call tmp(i)%set(values(i))
-                enddo
-                call move_alloc(tmp,values_copy)
-            end block
-        type is (logical)
-            block
-                type(yaml_bool), allocatable :: tmp(:)
-                allocate(tmp(n))
-                do i=1,n
-                    call tmp(i)%set(values(i))
-                enddo
-                call move_alloc(tmp,values_copy)
-            end block
-        type is (character(*))
-            block
-                type(yaml_string), allocatable :: tmp(:)
-                allocate(tmp(n))
-                do i=1,n
-                    call tmp(i)%set(values(i))
-                enddo
-                call move_alloc(tmp,values_copy)
-            end block
-        class default
-            allocate(yaml_null :: values_copy(n))
+        allocate(tmp)
+        allocate(yaml_int :: tmp%values(arr_size%n))
+        select type(values => tmp%values)
+        type is (yaml_int)
+            values(:)%value = ivals
         end select
+        call move_alloc(tmp,res)
+    end function create_int_array
 
-        select type(c => res)
-        type is (yaml_array)
-            call move_alloc(values_copy,c%values)
+    function create_real_array(arr_size,rvals) result(res)
+        type(size_t), intent(in) :: arr_size
+        real(rp),     intent(in) :: rvals(arr_size%n)
+        class(yaml_value_t), allocatable :: res
+        type(yaml_array),    allocatable :: tmp
+        !
+        allocate(tmp)
+        allocate(yaml_real :: tmp%values(arr_size%n))
+        select type(values => tmp%values)
+        type is (yaml_real)
+            values(:)%value = rvals
         end select
-    end function create_array_value
+        call move_alloc(tmp,res)
+    end function create_real_array
+
+    function create_string_array(arr_size,svals) result(res)
+        type(size_t), intent(in) :: arr_size
+        character(*), intent(in) :: svals(arr_size%n)
+        class(yaml_value_t), allocatable :: res
+        type(yaml_array),    allocatable :: tmp
+        integer(ip) :: i
+        !
+        allocate(tmp)
+        allocate(yaml_string :: tmp%values(arr_size%n))
+        select type(values => tmp%values)
+        type is (yaml_string)
+            do i=1,arr_size%n
+                call values(i)%set( svals(i) )
+            enddo
+        end select
+        call move_alloc(tmp,res)
+    end function create_string_array
 
     !
     !>>>1 Methods: to_string
@@ -498,8 +517,28 @@ contains
     subroutine set_string_value(this, val)
         class(yaml_string), intent(inout) :: this
         character(len=*), intent(in) :: val
-        this%value = val
+        this%value = strip_quotes(val)
         this%raw_string = val
     end subroutine set_string_value
+
+    !
+    !>>>1 Auxiliary functions
+    !
+
+    pure function strip_quotes(s) result(res)
+        character(len=*), intent(in) :: s
+        character(len=:), allocatable :: res
+        character(len=:), allocatable :: tmp
+        integer :: n
+
+        tmp = trim(adjustl(s))
+        n = len_trim(tmp)
+
+        if(n>1 .and. tmp(1:1) == '"' .and. tmp(n:n) == '"') then
+            res = tmp(2:n-1)
+        else
+            res = tmp
+        end if
+    end function
 
 end module YAML_Value
